@@ -7,6 +7,7 @@ defmodule Ant.MixProject do
       version: "0.0.1",
       elixir: "~> 1.15",
       start_permanent: Mix.env() == :prod,
+      elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps()
     ]
   end
@@ -14,10 +15,14 @@ defmodule Ant.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger, :wx, :runtime_tools, :observer],
+      extra_applications: [:logger, :mnesia, :wx, :runtime_tools, :observer],
       mod: {Ant.Application, []}
     ]
   end
+
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+
+  defp elixirc_paths(_), do: ["lib"]
 
   # Run "mix help deps" to learn about dependencies.
   defp deps do
