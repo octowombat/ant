@@ -50,11 +50,16 @@ defmodule Ant.Database.Adapters.MnesiaTest do
 
   test "filter/2 filters records by one or more attributes" do
     {:ok, %{id: record_id}} = insert_record(status: "cancelled", args: %{a: 1, c: 2})
-    {:ok, %{id: record_2_id}} = insert_record(status: "running", args: %{a: 1, b: 2, d: 4}, attempts: 1)
+
+    {:ok, %{id: record_2_id}} =
+      insert_record(status: "running", args: %{a: 1, b: 2, d: 4}, attempts: 1)
 
     assert [%{id: ^record_id}] = Mnesia.filter(:ant_workers, %{status: "cancelled"})
     assert [%{id: ^record_2_id}] = Mnesia.filter(:ant_workers, %{status: "running", attempts: 1})
-    assert [%{id: ^record_2_id}] = Mnesia.filter(:ant_workers, %{args: %{b: 2}}), "filters by partial map"
+
+    assert [%{id: ^record_2_id}] = Mnesia.filter(:ant_workers, %{args: %{b: 2}}),
+           "filters by partial map"
+
     assert Mnesia.filter(:ant_workers, %{args: %{another_attr: 2}}) == []
   end
 

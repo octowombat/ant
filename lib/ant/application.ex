@@ -24,10 +24,11 @@ defmodule Ant.Application do
     :ok = :mnesia.start()
 
     # unless :mnesia.table_info(:ant_workers, :attributes) do
-      :mnesia.create_table(:ant_workers,
-        attributes: [:id, :worker_module, :status, :args, :attempts, :errors, :opts]
-        # disc_copies: [node()]
-      )
+    :mnesia.create_table(:ant_workers,
+      attributes: [:id, :worker_module, :status, :args, :attempts, :errors, :opts]
+      # disc_copies: [node()]
+    )
+
     # end
   end
 end

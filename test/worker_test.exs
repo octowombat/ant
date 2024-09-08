@@ -79,8 +79,10 @@ defmodule Ant.WorkerTest do
       defmodule FailOnceWorker do
         use Ant.Worker
 
-        def perform(%{attempts: 0}), do: :error
+        def perform(%{attempts: 1}), do: :error
         def perform(_worker), do: :ok
+
+        def calculate_delay(_worker), do: 0
       end
 
       {:ok, worker} =
@@ -99,8 +101,12 @@ defmodule Ant.WorkerTest do
           {:ok, updated_worker} = Ant.Repo.get(:ant_workers, worker.id)
 
           assert updated_worker.status == :completed
-          assert updated_worker.attempts == 1
-          assert updated_worker.errors == []
+          assert updated_worker.attempts == 2
+
+          assert [error] = updated_worker.errors
+          assert error.error == "Expected :ok or {:ok, _result}, but got :error"
+          assert error.attempt == 1
+          refute error.stack_trace
       end
     end
 
@@ -120,9 +126,10 @@ defmodule Ant.WorkerTest do
         {:DOWN, ^ref, :process, ^pid, _reason} ->
           {:ok, updated_worker} = Ant.Repo.get(:ant_workers, worker.id)
 
+          errors = updated_worker.errors
+
           assert updated_worker.status == :failed
           assert updated_worker.attempts == 3
-          assert updated_worker.errors == []
       end
     end
 
@@ -147,8 +154,13 @@ defmodule Ant.WorkerTest do
 
           errors = updated_worker.errors
 
-          assert Enum.all?(errors, & &1.error == "Custom exception!")
-          assert Enum.all?(errors, & &1.stack_trace =~ "Ant.WorkerTest.ExceptionWorker.perform/1")
+          assert Enum.all?(errors, &(&1.error == "Custom exception!"))
+
+          assert Enum.all?(
+                   errors,
+                   &(&1.stack_trace =~ "Ant.WorkerTest.ExceptionWorker.perform/1")
+                 )
+
           assert errors |> Enum.map(& &1.attempt) |> Enum.sort() == [1, 2, 3]
       end
     end

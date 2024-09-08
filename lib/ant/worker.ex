@@ -59,7 +59,10 @@ defmodule Ant.Worker do
 
   def handle_cast(:perform, state) do
     worker = state.worker
-    {:ok, worker} = Ant.Workers.update_worker(worker.id, %{status: :running, attempts: worker.attempts + 1})
+
+    {:ok, worker} =
+      Ant.Workers.update_worker(worker.id, %{status: :running, attempts: worker.attempts + 1})
+
     state = Map.put(state, :worker, worker)
 
     try do
@@ -96,13 +99,23 @@ defmodule Ant.Worker do
   # the worker will be retried.
   # Otherwise, the worker will be stopped.
   #
-  defp handle_result(_error, state) do
+  defp handle_result(error_result, state) do
     worker = state.worker
+
+    error = %{
+      attempt: worker.attempts,
+      error: "Expected :ok or {:ok, _result}, but got #{inspect(error_result)}",
+      stack_trace: nil,
+      attempted_at: DateTime.utc_now()
+    }
+
+    errors = [error | worker.errors]
 
     if worker.attempts < @max_attempts do
       Logger.debug("handle_result: ERROR. Retrying.")
 
-      {:ok, worker} = Ant.Workers.update_worker(state.worker.id, %{status: :retrying})
+      {:ok, worker} =
+        Ant.Workers.update_worker(state.worker.id, %{status: :retrying, errors: errors})
 
       state
       |> Map.put(:worker, worker)
@@ -110,7 +123,9 @@ defmodule Ant.Worker do
     else
       Logger.debug("handle_result: ERROR. Max attempts reached.")
 
-      {:ok, worker} = Ant.Workers.update_worker(state.worker.id, %{status: :failed})
+      {:ok, worker} =
+        Ant.Workers.update_worker(state.worker.id, %{status: :failed, errors: errors})
+
       {:stop, :normal, Map.put(state, :worker, worker)}
     end
   end
