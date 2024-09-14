@@ -28,23 +28,6 @@ defmodule Ant.WorkerTest do
     def calculate_delay(_worker), do: 0
   end
 
-  setup_all do
-    # Stop the Ant.WorkersRunner GenServer to prevent it from running during tests
-    # because it automatically pick ups workers from the database and runs them,
-    # changing their state.
-    # It affects the tests from this file that rely on the state of the workers.
-    # The GenServer will be restarted after tests.
-    #
-    :ok = GenServer.stop(Ant.WorkersRunner)
-
-    # Ensure the GenServer is restarted after tests
-    on_exit(fn ->
-      {:ok, _} = GenServer.start_link(Ant.WorkersRunner, [])
-    end)
-
-    :ok
-  end
-
   describe "start_link/1" do
     test "accepts worker struct on start" do
       assert {:ok, _pid} = Worker.start_link(%Worker{})
@@ -126,8 +109,7 @@ defmodule Ant.WorkerTest do
         {:DOWN, ^ref, :process, ^pid, _reason} ->
           {:ok, updated_worker} = Ant.Repo.get(:ant_workers, worker.id)
 
-          errors = updated_worker.errors
-
+          assert length(updated_worker.errors) == 3
           assert updated_worker.status == :failed
           assert updated_worker.attempts == 3
       end

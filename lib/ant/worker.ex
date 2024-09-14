@@ -20,7 +20,7 @@ defmodule Ant.Worker do
   @optional_callbacks calculate_delay: 1
 
   @max_attempts 3
-  @default_retry_delay 5_000
+  @default_retry_delay 10_000
 
   defmacro __using__(_opts) do
     quote do

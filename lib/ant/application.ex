@@ -3,17 +3,33 @@ defmodule Ant.Application do
 
   use Application
 
+  @mix_env Mix.env()
+
   @impl true
   def start(_type, _args) do
     start_database()
 
-    children = [
+    opts = [strategy: :one_for_one, name: Ant.Supervisor]
+    Supervisor.start_link(children(@mix_env), opts)
+  end
+
+  def children(:test) do
+    # For test env does not start Ant.WorkersRunner GenServer
+    # because it automatically pick ups workers from the database and runs them,
+    # changing their state.
+    # It affects the tests that rely on the state of the workers.
+    # Ant.WorkersRunner should be started and stopped manually where needed.
+    #
+    [
+      {DynamicSupervisor, name: Ant.WorkersSupervisor, strategy: :one_for_one}
+    ]
+  end
+
+  def children(_env) do
+    [
       Ant.WorkersRunner,
       {DynamicSupervisor, name: Ant.WorkersSupervisor, strategy: :one_for_one}
     ]
-
-    opts = [strategy: :one_for_one, name: Ant.Supervisor]
-    Supervisor.start_link(children, opts)
   end
 
   defp start_database do
