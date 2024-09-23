@@ -2,13 +2,15 @@ defmodule Ant.Worker do
   use GenServer
   require Logger
 
+  alias Ant.Workers
+
   defstruct [:id, :worker_module, :args, :status, :attempts, :errors, :opts]
 
   @type t :: %Ant.Worker{
           id: non_neg_integer(),
           worker_module: module(),
           args: map(),
-          status: :queued | :running | :completed | :failed | :retrying | :cancelled,
+          status: :enqueued | :running | :completed | :failed | :retrying | :cancelled,
           args: map(),
           attempts: non_neg_integer(),
           errors: [map()],
@@ -26,11 +28,18 @@ defmodule Ant.Worker do
     quote do
       @behaviour Ant.Worker
 
+      @spec perform_async(args :: map(), opts :: keyword()) :: {:ok, Ant.Worker.t()} | {:error, any()}
+      def perform_async(args, opts \\ []) do
+        args
+        |> build(opts)
+        |> Workers.create_worker()
+      end
+
       def build(args, opts \\ []) do
         %Ant.Worker{
           worker_module: __MODULE__,
           args: args,
-          status: :queued,
+          status: :enqueued,
           attempts: 0,
           errors: [],
           opts: opts

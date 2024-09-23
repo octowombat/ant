@@ -34,6 +34,18 @@ defmodule Ant.WorkerTest do
     end
   end
 
+  describe "perform_async/2" do
+    test "creates a worker" do
+      assert {:ok, worker} = MyTestWorker.perform_async(%{email: "test@mail.com", username: "test"})
+      assert worker.worker_module == MyTestWorker
+      assert worker.args == %{email: "test@mail.com", username: "test"}
+      assert worker.status == :enqueued
+      assert worker.attempts == 0
+      assert worker.errors == []
+      assert worker.opts == []
+    end
+  end
+
   describe "perform/1" do
     test "runs perform function for the worker and terminates process" do
       {:ok, worker} =
