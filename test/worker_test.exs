@@ -3,6 +3,16 @@ defmodule Ant.WorkerTest do
 
   use ExUnit.Case
   use MnesiaTesting
+  use Mimic
+
+  setup do
+    Mimic.copy(Ant.Queue)
+
+    :ok
+  end
+
+  setup :set_mimic_global
+  setup :verify_on_exit!
 
   defmodule MyTestWorker do
     use Ant.Worker
@@ -36,7 +46,9 @@ defmodule Ant.WorkerTest do
 
   describe "perform_async/2" do
     test "creates a worker" do
-      assert {:ok, worker} = MyTestWorker.perform_async(%{email: "test@mail.com", username: "test"})
+      assert {:ok, worker} =
+               MyTestWorker.perform_async(%{email: "test@mail.com", username: "test"})
+
       assert worker.worker_module == MyTestWorker
       assert worker.args == %{email: "test@mail.com", username: "test"}
       assert worker.status == :enqueued
@@ -52,6 +64,12 @@ defmodule Ant.WorkerTest do
         %{a: 1}
         |> MyTestWorker.build()
         |> Ant.Workers.create_worker()
+
+      expect(Ant.Queue, :dequeue, fn worker_to_dequeue ->
+        assert worker_to_dequeue.id == worker.id
+
+        :ok
+      end)
 
       {:ok, pid} = Worker.start_link(worker)
 
@@ -70,7 +88,7 @@ defmodule Ant.WorkerTest do
       end
     end
 
-    test "retries if worker fails" do
+    test "prepares worker for retry if it fails" do
       defmodule FailOnceWorker do
         use Ant.Worker
 
@@ -85,6 +103,12 @@ defmodule Ant.WorkerTest do
         |> FailOnceWorker.build()
         |> Ant.Workers.create_worker()
 
+      expect(Ant.Queue, :dequeue, fn worker_to_dequeue ->
+        assert worker_to_dequeue.id == worker.id
+
+        :ok
+      end)
+
       {:ok, pid} = Worker.start_link(worker)
 
       assert Worker.perform(pid) == :ok
@@ -95,8 +119,9 @@ defmodule Ant.WorkerTest do
         {:DOWN, ^ref, :process, ^pid, _reason} ->
           {:ok, updated_worker} = Ant.Repo.get(:ant_workers, worker.id)
 
-          assert updated_worker.status == :completed
-          assert updated_worker.attempts == 2
+          assert updated_worker.status == :retrying
+          assert updated_worker.attempts == 1
+          assert updated_worker.scheduled_at
 
           assert [error] = updated_worker.errors
           assert error.error == "Expected :ok or {:ok, _result}, but got :error"
@@ -105,11 +130,20 @@ defmodule Ant.WorkerTest do
       end
     end
 
-    test "stops retrying after reaching max attempts" do
-      {:ok, worker} =
+    test "stops retrying if reached max attempts" do
+      worker_params =
         %{a: 1}
         |> FailWorker.build()
-        |> Ant.Workers.create_worker()
+        |> Map.merge(%{attempts: 2, errors: [%{attempt: 1}, %{attempt: 2}]})
+        |> Map.from_struct()
+
+      {:ok, worker} = Ant.Repo.insert(:ant_workers, worker_params)
+
+      expect(Ant.Queue, :dequeue, fn worker_to_dequeue ->
+        assert worker_to_dequeue.id == worker.id
+
+        :ok
+      end)
 
       {:ok, pid} = Worker.start_link(worker)
 
@@ -124,14 +158,38 @@ defmodule Ant.WorkerTest do
           assert length(updated_worker.errors) == 3
           assert updated_worker.status == :failed
           assert updated_worker.attempts == 3
+          assert is_nil(updated_worker.scheduled_at)
       end
     end
 
     test "handles exceptions gracefully and updates worker" do
-      {:ok, worker} =
+      worker_params =
         %{a: 1}
         |> ExceptionWorker.build()
-        |> Ant.Workers.create_worker()
+        |> Map.merge(%{
+          attempts: 2,
+          errors: [
+            %{
+              attempt: 1,
+              error: "Custom exception!",
+              stack_trace: "Ant.WorkerTest.ExceptionWorker.perform/1"
+            },
+            %{
+              attempt: 2,
+              error: "Custom exception!",
+              stack_trace: "Ant.WorkerTest.ExceptionWorker.perform/1"
+            }
+          ]
+        })
+        |> Map.from_struct()
+
+      {:ok, worker} = Ant.Repo.insert(:ant_workers, worker_params)
+
+      expect(Ant.Queue, :dequeue, fn worker_to_dequeue ->
+        assert worker_to_dequeue.id == worker.id
+
+        :ok
+      end)
 
       {:ok, pid} = Worker.start_link(worker)
 
@@ -157,6 +215,20 @@ defmodule Ant.WorkerTest do
 
           assert errors |> Enum.map(& &1.attempt) |> Enum.sort() == [1, 2, 3]
       end
+    end
+  end
+
+  describe "build/2" do
+    defmodule TestWorkerWithQueueName do
+      use Ant.Worker, queue: "test_queue"
+
+      def perform(_worker), do: :ok
+    end
+
+    test "uses provided queue name" do
+      worker = TestWorkerWithQueueName.build(%{key: :value})
+
+      assert worker.queue_name == "test_queue"
     end
   end
 end

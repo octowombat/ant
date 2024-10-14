@@ -14,22 +14,30 @@ defmodule Ant.Application do
   end
 
   def children(:test) do
-    # For test env does not start Ant.WorkersRunner GenServer
+    # For test env does not start Ant.Queue GenServer
     # because it automatically pick ups workers from the database and runs them,
     # changing their state.
     # It affects the tests that rely on the state of the workers.
-    # Ant.WorkersRunner should be started and stopped manually where needed.
+    # Ant.Queue should be started and stopped manually where needed.
     #
     [
+      {Registry, keys: :unique, name: Ant.QueueRegistry},
       {DynamicSupervisor, name: Ant.WorkersSupervisor, strategy: :one_for_one}
     ]
   end
 
   def children(_env) do
+    queues = Application.get_env(:ant, :queues, ["default"])
+
+    queue_children =
+      Enum.map(queues, fn queue ->
+        Supervisor.child_spec({Ant.Queue, queue: queue}, id: {:ant_queue, queue})
+      end)
+
     [
-      Ant.WorkersRunner,
+      {Registry, keys: :unique, name: Ant.QueueRegistry},
       {DynamicSupervisor, name: Ant.WorkersSupervisor, strategy: :one_for_one}
-    ]
+    ] ++ queue_children
   end
 
   defp start_database do
@@ -41,7 +49,17 @@ defmodule Ant.Application do
 
     # unless :mnesia.table_info(:ant_workers, :attributes) do
     :mnesia.create_table(:ant_workers,
-      attributes: [:id, :worker_module, :status, :args, :attempts, :errors, :opts]
+      attributes: [
+        :id,
+        :worker_module,
+        :queue_name,
+        :args,
+        :status,
+        :attempts,
+        :scheduled_at,
+        :errors,
+        :opts
+      ]
       # disc_copies: [node()]
     )
 

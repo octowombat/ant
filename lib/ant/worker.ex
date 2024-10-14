@@ -4,15 +4,27 @@ defmodule Ant.Worker do
 
   alias Ant.Workers
 
-  defstruct [:id, :worker_module, :args, :status, :attempts, :errors, :opts]
+  defstruct [
+    :id,
+    :worker_module,
+    :queue_name,
+    :args,
+    :status,
+    :attempts,
+    :scheduled_at,
+    :errors,
+    :opts
+  ]
 
   @type t :: %Ant.Worker{
           id: non_neg_integer(),
           worker_module: module(),
+          queue_name: String.t(),
           args: map(),
-          status: :enqueued | :running | :completed | :failed | :retrying | :cancelled,
-          args: map(),
+          status:
+            :enqueued | :running | :scheduled | :completed | :failed | :retrying | :cancelled,
           attempts: non_neg_integer(),
+          scheduled_at: DateTime.t(),
           errors: [map()],
           opts: keyword()
         }
@@ -24,11 +36,19 @@ defmodule Ant.Worker do
   @max_attempts 3
   @default_retry_delay 10_000
 
-  defmacro __using__(_opts) do
+  defmacro __using__(opts) do
+    queue_name =
+      Keyword.get(
+        opts,
+        :queue,
+        List.first(Application.get_env(:ant, :queues, ["default"]))
+      )
+
     quote do
       @behaviour Ant.Worker
 
-      @spec perform_async(args :: map(), opts :: keyword()) :: {:ok, Ant.Worker.t()} | {:error, any()}
+      @spec perform_async(args :: map(), opts :: keyword()) ::
+              {:ok, Ant.Worker.t()} | {:error, any()}
       def perform_async(args, opts \\ []) do
         args
         |> build(opts)
@@ -39,8 +59,10 @@ defmodule Ant.Worker do
         %Ant.Worker{
           worker_module: __MODULE__,
           args: args,
+          queue_name: unquote(queue_name),
           status: :enqueued,
           attempts: 0,
+          scheduled_at: DateTime.utc_now(),
           errors: [],
           opts: opts
         }
@@ -70,7 +92,15 @@ defmodule Ant.Worker do
     worker = state.worker
 
     {:ok, worker} =
-      Ant.Workers.update_worker(worker.id, %{status: :running, attempts: worker.attempts + 1})
+      Ant.Workers.update_worker(
+        worker.id,
+        %{
+          status: :running,
+          # prevents the same worker to be picked up later
+          scheduled_at: nil,
+          attempts: worker.attempts + 1
+        }
+      )
 
     state = Map.put(state, :worker, worker)
 
@@ -84,22 +114,16 @@ defmodule Ant.Worker do
     end
   end
 
-  def handle_info(:retry, state) do
-    handle_cast(:perform, state)
-  end
-
   defp handle_result(:ok, state) do
-    Logger.debug("handle_result: OK")
-
     {:ok, worker} = Ant.Workers.update_worker(state.worker.id, %{status: :completed})
-    {:stop, :normal, Map.put(state, :worker, worker)}
+
+    stop_worker(worker, state)
   end
 
   defp handle_result({:ok, _result}, state) do
-    Logger.debug("handle_result: OK")
-
     {:ok, worker} = Ant.Workers.update_worker(state.worker.id, %{status: :completed})
-    {:stop, :normal, Map.put(state, :worker, worker)}
+
+    stop_worker(worker, state)
   end
 
   # When result is returned, but is not :ok or {:ok, _result}
@@ -121,21 +145,15 @@ defmodule Ant.Worker do
     errors = [error | worker.errors]
 
     if worker.attempts < @max_attempts do
-      Logger.debug("handle_result: ERROR. Retrying.")
-
-      {:ok, worker} =
-        Ant.Workers.update_worker(state.worker.id, %{status: :retrying, errors: errors})
+      {:ok, worker} = Ant.Workers.update_worker(worker.id, %{errors: errors})
 
       state
       |> Map.put(:worker, worker)
-      |> retry()
+      |> prepare_for_retry()
     else
-      Logger.debug("handle_result: ERROR. Max attempts reached.")
+      {:ok, worker} = Ant.Workers.update_worker(worker.id, %{status: :failed, errors: errors})
 
-      {:ok, worker} =
-        Ant.Workers.update_worker(state.worker.id, %{status: :failed, errors: errors})
-
-      {:stop, :normal, Map.put(state, :worker, worker)}
+      stop_worker(worker, state)
     end
   end
 
@@ -153,34 +171,37 @@ defmodule Ant.Worker do
     errors = [error | worker.errors]
 
     if attempts < @max_attempts do
-      Logger.debug("handle_exception: Retrying.")
-
-      {:ok, worker} = Ant.Workers.update_worker(worker.id, %{status: :failed, errors: errors})
+      {:ok, worker} = Ant.Workers.update_worker(worker.id, %{errors: errors})
 
       state
       |> Map.put(:worker, worker)
-      |> retry()
+      |> prepare_for_retry()
     else
-      Logger.debug("handle_exception: Max attempts reached.")
-
       {:ok, worker} = Ant.Workers.update_worker(worker.id, %{status: :failed, errors: errors})
-      {:stop, :normal, Map.put(state, :worker, worker)}
+
+      stop_worker(worker, state)
     end
   end
 
-  def terminate(reason, state) do
-    IO.puts("GenServer is terminating.")
-    IO.inspect(reason)
-    IO.inspect(state)
+  def terminate(_reason, _state) do
+    Logger.debug("GenServer is terminating.")
 
     :ok
   end
 
-  defp retry(state) do
-    {:ok, worker} = Ant.Workers.update_worker(state.worker.id, %{status: :retrying})
-    Process.send_after(self(), :retry, calculate_delay(worker))
+  defp prepare_for_retry(state) do
+    scheduled_at = DateTime.add(DateTime.utc_now(), calculate_delay(state.worker), :millisecond)
 
-    {:noreply, Map.put(state, :worker, worker)}
+    {:ok, worker} =
+      Ant.Workers.update_worker(state.worker.id, %{scheduled_at: scheduled_at, status: :retrying})
+
+    stop_worker(worker, state)
+  end
+
+  defp stop_worker(worker, state) do
+    Ant.Queue.dequeue(worker)
+
+    {:stop, :normal, state}
   end
 
   defp calculate_delay(worker) do

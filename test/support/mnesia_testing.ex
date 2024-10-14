@@ -20,7 +20,7 @@ defmodule MnesiaTesting do
 
     unless :mnesia.table_info(:ant_workers, :attributes) do
       :mnesia.create_table(:ant_workers,
-        attributes: [:id, :worker_module, :status, :args, :attempts, :errors, :opts]
+        attributes: [:id, :worker_module, :queue_name, :status, :args, :attempts, :errors, :opts]
       )
 
       :mnesia.wait_for_tables([:ant_workers], 5000)
