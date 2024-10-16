@@ -25,19 +25,23 @@ defmodule Ant.Workers do
 
   def list_retrying_workers(clauses, date_time \\ DateTime.utc_now()) do
     with {:ok, workers} <- list_workers(Map.put(clauses, :status, :retrying)) do
-      {:ok,
-       workers
-       |> Enum.reject(&(&1.scheduled_at > date_time))
-       |> Enum.sort_by(& &1.scheduled_at, DateTime)}
+      retry_workers =
+        workers
+        |> Enum.reject(&(DateTime.compare(&1.scheduled_at, date_time) == :gt))
+        |> Enum.sort_by(& &1.scheduled_at, DateTime)
+
+      {:ok, retry_workers}
     end
   end
 
   def list_scheduled_workers(clauses, date_time \\ DateTime.utc_now()) do
     with {:ok, workers} <- list_workers(Map.put(clauses, :status, :scheduled)) do
-      {:ok,
-       workers
-       |> Enum.reject(&(&1.scheduled_at > date_time))
-       |> Enum.sort_by(& &1.scheduled_at, DateTime)}
+      scheduled_workers =
+        workers
+        |> Enum.reject(&(DateTime.compare(&1.scheduled_at, date_time) == :gt))
+        |> Enum.sort_by(& &1.scheduled_at, DateTime)
+
+      {:ok, scheduled_workers}
     end
   end
 

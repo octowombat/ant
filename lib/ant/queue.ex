@@ -6,6 +6,7 @@ defmodule Ant.Queue do
 
   @queue_prefix "ant_queue_"
   @check_interval :timer.seconds(5)
+  @default_concurrency 5
 
   # Client API
 
@@ -23,21 +24,21 @@ defmodule Ant.Queue do
 
   @impl true
   def init(opts) do
-    check_interval = Keyword.get(opts, :check_interval, @check_interval)
-    concurrency = Keyword.get(opts, :concurrency, 5)
     queue_name = Keyword.fetch!(opts, :queue)
+    config = Keyword.get(opts, :config, [])
+    check_interval = Keyword.get(config, :check_interval, @check_interval)
+    concurrency = Keyword.get(config, :concurrency, @default_concurrency)
 
-    {
-      :ok,
-      %{
-        stuck_workers: [],
-        processing_workers: [],
-        check_interval: check_interval,
-        concurrency: concurrency,
-        queue_name: queue_name
-      },
-      {:continue, :enqueue_stuck_workers}
+    initial_state = %{
+      stuck_workers: [],
+      processing_workers: [],
+      check_interval: check_interval,
+      concurrency: concurrency,
+      queue_name: queue_name,
+      timer_ref: nil
     }
+
+    {:ok, initial_state, {:continue, :prepare}}
   end
 
   @impl true
@@ -45,25 +46,28 @@ defmodule Ant.Queue do
   # This prevents the situation when the application is restarted and the workers that were not completed
   # are not picked up by the Queue.
   #
-  def handle_continue(:enqueue_stuck_workers, state) do
+  def handle_continue(:prepare, state) do
     {:ok, stuck_workers} = list_stuck_workers(state.queue_name)
-    state = %{state | stuck_workers: stuck_workers}
 
-    schedule_check(state.check_interval)
+    state =
+      state
+        |> Map.put(:stuck_workers, stuck_workers)
+        |> schedule_check()
 
     {:noreply, state}
   end
 
   @impl true
   def handle_info(:check_workers, %{stuck_workers: []} = state) do
-    with {:ok, workers} <- list_workers_to_process(state.queue_name) do
-      workers
-      |> Enum.take(state.concurrency)
-      |> Enum.each(&run_worker/1)
-    end
+    {:ok, workers} = list_workers_to_process(state.queue_name)
 
-    schedule_check(state.check_interval)
+    workers
+    |> Enum.take(state.concurrency)
+    |> Enum.each(&run_worker/1)
 
+    state = schedule_check(state)
+
+    state = %{state | processing_workers: workers ++ state.processing_workers}
     {:noreply, state}
   end
 
@@ -75,22 +79,23 @@ defmodule Ant.Queue do
       when length(stuck_workers) < concurrency do
     {:ok, enqueued_workers} = list_workers_to_process(state.queue_name)
 
-    Enum.each(stuck_workers ++ enqueued_workers, &run_worker/1)
+    workers = stuck_workers ++ enqueued_workers
+    Enum.each(workers, &run_worker/1)
 
-    schedule_check(state.check_interval)
+    state = schedule_check(state)
 
-    {:noreply, %{state | stuck_workers: []}}
+    state = %{state | processing_workers: workers ++ state.processing_workers, stuck_workers: []}
+    {:noreply, state}
   end
 
   @impl true
   def handle_info(:check_workers, state) do
     stuck_workers = Enum.take(state.stuck_workers, state.concurrency)
-    state = %{state | stuck_workers: state.stuck_workers -- stuck_workers}
-
     Enum.each(stuck_workers, &run_worker/1)
 
-    schedule_check(state.check_interval)
+    state = schedule_check(state)
 
+    state = %{state | stuck_workers: state.stuck_workers -- stuck_workers}
     {:noreply, state}
   end
 
@@ -100,7 +105,7 @@ defmodule Ant.Queue do
 
     # Check for any workers to process immediately after dequeuing the current one.
     #
-    schedule_check(0)
+    state = schedule_check(state, 0)
 
     {:reply, :ok, %{state | processing_workers: processing_workers}}
   end
@@ -121,14 +126,26 @@ defmodule Ant.Queue do
   defp list_workers_to_process(queue_name) do
     with {:ok, scheduled_workers} <-
            Workers.list_scheduled_workers(%{queue_name: queue_name}, DateTime.utc_now()),
+         {:ok, retrying_workers} <- Workers.list_retrying_workers(%{queue_name: queue_name}, DateTime.utc_now()),
          {:ok, enqueued_workers} <-
            Workers.list_workers(%{queue_name: queue_name, status: :enqueued}) do
-      {:ok, scheduled_workers ++ enqueued_workers}
+      {:ok, scheduled_workers ++ retrying_workers ++ enqueued_workers}
     end
   end
 
-  defp schedule_check(check_interval) do
-    Process.send_after(self(), :check_workers, check_interval)
+  defp schedule_check(state), do: schedule_check(state, state.check_interval)
+
+  defp schedule_check(state, check_interval) do
+    # Cancels already scheduled check.
+    # After the worker dequeueing, the next check happens immediately.
+    # Without cancelling, the timer would fire multiple times within the check interval.
+    #
+    current_timer_ref = state.timer_ref
+    if current_timer_ref, do: Process.cancel_timer(current_timer_ref)
+
+    timer_ref = Process.send_after(self(), :check_workers, check_interval)
+
+    %{state | timer_ref: timer_ref}
   end
 
   defp run_worker(worker) do
@@ -142,5 +159,5 @@ defmodule Ant.Queue do
   # Is used by Registry to find the queue.
   #
   defp get_tuple_identifier(queue_name),
-    do: {:via, Registry, {Ant.QueueRegistry, @queue_prefix <> queue_name}}
+    do: {:via, Registry, {Ant.QueueRegistry, @queue_prefix <> to_string(queue_name)}}
 end

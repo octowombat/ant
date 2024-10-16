@@ -27,11 +27,18 @@ defmodule Ant.Application do
   end
 
   def children(_env) do
-    queues = Application.get_env(:ant, :queues, ["default"])
+    default_queues = [
+      default: [
+        concurrency: 5,
+        check_interval: 5_000
+      ]
+    ]
+
+    queues = Application.get_env(:ant, :queues, default_queues)
 
     queue_children =
-      Enum.map(queues, fn queue ->
-        Supervisor.child_spec({Ant.Queue, queue: queue}, id: {:ant_queue, queue})
+      Enum.map(queues, fn {queue_name, queue_config} ->
+        Supervisor.child_spec({Ant.Queue, queue: queue_name, config: queue_config}, id: {:ant_queue, queue_name})
       end)
 
     [
