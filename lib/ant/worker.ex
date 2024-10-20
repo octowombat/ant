@@ -12,6 +12,7 @@ defmodule Ant.Worker do
     :status,
     :attempts,
     :scheduled_at,
+    :updated_at,
     :errors,
     :opts
   ]
@@ -25,6 +26,7 @@ defmodule Ant.Worker do
             :enqueued | :running | :scheduled | :completed | :failed | :retrying | :cancelled,
           attempts: non_neg_integer(),
           scheduled_at: DateTime.t(),
+          updated_at: DateTime.t(),
           errors: [map()],
           opts: keyword()
         }

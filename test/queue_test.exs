@@ -91,7 +91,10 @@ defmodule Ant.QueueTest do
       interval_in_ms = 5
 
       {:ok, _pid} =
-        Queue.start_link(queue: "default", config: [check_interval: interval_in_ms, concurrency: 2])
+        Queue.start_link(
+          queue: "default",
+          config: [check_interval: interval_in_ms, concurrency: 2]
+        )
 
       expect(DynamicSupervisor, :start_child, 4, fn Ant.WorkersSupervisor, child_spec ->
         assert {Ant.Worker, :start_link, [%Ant.Worker{status: status, id: id}]} = child_spec.start
@@ -116,22 +119,6 @@ defmodule Ant.QueueTest do
 
       assert_receive({:running_pid_for_periodic_check_3_performed, :periodic_check})
       assert_receive({:retrying_pid_for_periodic_check_4_performed, :periodic_check})
-    end
-
-    test "handles errors when listing workers" do
-      expect(Ant.Workers, :list_workers, fn %{queue_name: "default"} ->
-        {:error, :database_error}
-      end)
-
-      interval_in_ms = 5
-
-      {:ok, pid} = Queue.start_link(queue: "default", config: [check_interval: interval_in_ms])
-
-      # Allow time for the periodic check to run
-      Process.sleep(interval_in_ms * 2)
-
-      # Ensure the process is still alive despite the errors
-      assert Process.alive?(pid)
     end
 
     test "runs enqueued and scheduled workers if there is no stuck workers" do

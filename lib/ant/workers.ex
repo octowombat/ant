@@ -50,4 +50,7 @@ defmodule Ant.Workers do
 
   @spec get_worker(integer()) :: {:ok, Ant.Worker.t()} | {:error, atom()}
   def get_worker(id), do: Repo.get(:ant_workers, id)
+
+  @spec delete_worker(Ant.Worker.t()) :: :ok
+  def delete_worker(worker), do: Repo.delete(:ant_workers, worker.id)
 end

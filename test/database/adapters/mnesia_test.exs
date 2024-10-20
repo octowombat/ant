@@ -18,6 +18,7 @@ defmodule Ant.Database.Adapters.MnesiaTest do
     assert record.worker_module == "Ant.Worker"
     assert record.status == "pending"
     assert record.args == %{a: 1}
+    assert record.updated_at
     assert record.attempts == 0
     assert record.errors == []
     assert record.opts == %{}
@@ -37,6 +38,10 @@ defmodule Ant.Database.Adapters.MnesiaTest do
     assert record.opts == %{}
   end
 
+  test "get/2 returns not found when record does not exist" do
+    assert {:error, :not_found} = Mnesia.get(:ant_workers, "non-existent-id")
+  end
+
   test "update/3 updates record" do
     {:ok, record} = insert_record()
 
@@ -46,6 +51,7 @@ defmodule Ant.Database.Adapters.MnesiaTest do
     assert updated_record.id == record.id
     assert updated_record.status == "running"
     assert updated_record.attempts == 1
+    assert updated_record.updated_at
   end
 
   test "filter/2 filters records by one or more attributes" do
@@ -61,6 +67,13 @@ defmodule Ant.Database.Adapters.MnesiaTest do
            "filters by partial map"
 
     assert Mnesia.filter(:ant_workers, %{args: %{another_attr: 2}}) == []
+  end
+
+  test "delete/2 deletes record" do
+    {:ok, record} = insert_record()
+
+    assert :ok = Mnesia.delete(:ant_workers, record.id)
+    assert Mnesia.get(:ant_workers, record.id) == {:error, :not_found}
   end
 
   defp insert_record(opts \\ []) do

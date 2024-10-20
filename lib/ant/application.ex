@@ -38,12 +38,15 @@ defmodule Ant.Application do
 
     queue_children =
       Enum.map(queues, fn {queue_name, queue_config} ->
-        Supervisor.child_spec({Ant.Queue, queue: queue_name, config: queue_config}, id: {:ant_queue, queue_name})
+        Supervisor.child_spec({Ant.Queue, queue: queue_name, config: queue_config},
+          id: {:ant_queue, queue_name}
+        )
       end)
 
     [
       {Registry, keys: :unique, name: Ant.QueueRegistry},
-      {DynamicSupervisor, name: Ant.WorkersSupervisor, strategy: :one_for_one}
+      {DynamicSupervisor, name: Ant.WorkersSupervisor, strategy: :one_for_one},
+      {Ant.DatabaseCleaner, []}
     ] ++ queue_children
   end
 
@@ -63,41 +66,44 @@ defmodule Ant.Application do
     :ok = :mnesia.start()
 
     # unless :mnesia.table_info(:ant_workers, :attributes) do
-      persistence_strategy = Application.get_env(:ant, :database, [])[:persistence_strategy] || :ram_copies
+    persistence_strategy =
+      Application.get_env(:ant, :database, [])[:persistence_strategy] || :ram_copies
 
-      persistence_options =
-        case persistence_strategy do
-          :disc_copies ->
-            validate_mnesia_disc_copies_config()
-            [disc_copies: [node()]]
+    persistence_options =
+      case persistence_strategy do
+        :disc_copies ->
+          validate_mnesia_disc_copies_config()
+          [disc_copies: [node()]]
 
-          :ram_copies ->
-            [ram_copies: [node()]]
+        :ram_copies ->
+          [ram_copies: [node()]]
 
-          :disc_only_copies ->
-            validate_mnesia_disc_copies_config()
-            [disc_only_copies: [node()]]
+        :disc_only_copies ->
+          validate_mnesia_disc_copies_config()
+          [disc_only_copies: [node()]]
 
-          _ ->
-            [ram_copies: [node()]]
-        end
+        _ ->
+          [ram_copies: [node()]]
+      end
 
-      :mnesia.create_table(:ant_workers,
-        [
-          attributes: [
-            :id,
-            :worker_module,
-            :queue_name,
-            :args,
-            :status,
-            :attempts,
-            :scheduled_at,
-            :errors,
-            :opts
-          ],
-          type: :set
-        ] ++ persistence_options
-      )
+    :mnesia.create_table(
+      :ant_workers,
+      [
+        attributes: [
+          :id,
+          :worker_module,
+          :queue_name,
+          :args,
+          :status,
+          :attempts,
+          :scheduled_at,
+          :updated_at,
+          :errors,
+          :opts
+        ],
+        type: :set
+      ] ++ persistence_options
+    )
 
     # end
   end

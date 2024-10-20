@@ -52,6 +52,7 @@ defmodule Ant.WorkerTest do
       assert worker.worker_module == MyTestWorker
       assert worker.args == %{email: "test@mail.com", username: "test"}
       assert worker.status == :enqueued
+      assert worker.updated_at
       assert worker.attempts == 0
       assert worker.errors == []
       assert worker.opts == []
@@ -122,6 +123,7 @@ defmodule Ant.WorkerTest do
           assert updated_worker.status == :retrying
           assert updated_worker.attempts == 1
           assert updated_worker.scheduled_at
+          assert updated_worker.updated_at
 
           assert [error] = updated_worker.errors
           assert error.error == "Expected :ok or {:ok, _result}, but got :error"

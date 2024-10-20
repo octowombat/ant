@@ -51,8 +51,8 @@ defmodule Ant.Queue do
 
     state =
       state
-        |> Map.put(:stuck_workers, stuck_workers)
-        |> schedule_check()
+      |> Map.put(:stuck_workers, stuck_workers)
+      |> schedule_check()
 
     {:noreply, state}
   end
@@ -126,7 +126,8 @@ defmodule Ant.Queue do
   defp list_workers_to_process(queue_name) do
     with {:ok, scheduled_workers} <-
            Workers.list_scheduled_workers(%{queue_name: queue_name}, DateTime.utc_now()),
-         {:ok, retrying_workers} <- Workers.list_retrying_workers(%{queue_name: queue_name}, DateTime.utc_now()),
+         {:ok, retrying_workers} <-
+           Workers.list_retrying_workers(%{queue_name: queue_name}, DateTime.utc_now()),
          {:ok, enqueued_workers} <-
            Workers.list_workers(%{queue_name: queue_name, status: :enqueued}) do
       {:ok, scheduled_workers ++ retrying_workers ++ enqueued_workers}

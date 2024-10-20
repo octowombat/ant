@@ -1,6 +1,6 @@
 defmodule Ant.Database.Adapters.Mnesia do
   def get(db_table, id) do
-    with {:atomic, record} <-
+    with {:atomic, %{} = record} <-
            :mnesia.transaction(fn ->
              case :mnesia.read({db_table, id}) do
                [] ->
@@ -13,6 +13,12 @@ defmodule Ant.Database.Adapters.Mnesia do
              end
            end) do
       {:ok, record}
+    else
+      {:atomic, {:error, :not_found}} ->
+        {:error, :not_found}
+
+      error ->
+        error
     end
   end
 
@@ -62,6 +68,7 @@ defmodule Ant.Database.Adapters.Mnesia do
         table_columns,
         fn
           :id -> generate_id()
+          :updated_at -> DateTime.utc_now()
           column -> params[column]
         end
       )
@@ -87,6 +94,7 @@ defmodule Ant.Database.Adapters.Mnesia do
                    row
                    |> to_map(table_columns)
                    |> Map.merge(params)
+                   |> Map.put(:updated_at, DateTime.utc_now())
 
                  attributes = Enum.map(table_columns, &Map.get(updated_record, &1))
                  updated_row = List.to_tuple([db_table | attributes])
@@ -103,8 +111,11 @@ defmodule Ant.Database.Adapters.Mnesia do
   # def update_all(queryable, params) do
   # end
 
-  # defp delete(queryable, params) do
-  # end
+  def delete(db_table, id) do
+    with {:atomic, :ok} <- :mnesia.transaction(fn -> :mnesia.delete({db_table, id}) end) do
+      :ok
+    end
+  end
 
   # defp delete_all(queryable) do
   # end

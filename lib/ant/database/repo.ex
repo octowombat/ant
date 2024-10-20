@@ -39,8 +39,9 @@ defmodule Ant.Repo do
   # def update_all(queryable, params) do
   # end
 
-  # defp delete(queryable, params) do
-  # end
+  def delete(db_table, id) do
+    Ant.Database.Adapters.Mnesia.delete(db_table, id)
+  end
 
   # defp delete_all(queryable) do
   # end
