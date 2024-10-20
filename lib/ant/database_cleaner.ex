@@ -11,11 +11,15 @@ defmodule Ant.DatabaseCleaner do
 
   def init(_opts) do
     ttl = Application.get_env(:ant, :database, [])[:ttl] || @default_ttl
-    interval = min(ttl, @default_interval)
 
-    schedule_cleanup(interval)
+    if ttl == :infinity do
+      :ignore
+    else
+      interval = min(ttl, @default_interval)
+      schedule_cleanup(interval)
 
-    {:ok, %{ttl: ttl, interval: interval}}
+      {:ok, %{ttl: ttl, interval: interval}}
+    end
   end
 
   def handle_info(:cleanup, state) do
