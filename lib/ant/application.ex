@@ -48,6 +48,14 @@ defmodule Ant.Application do
   end
 
   defp start_database do
+    :mnesia.stop()
+
+    persistence_dir = Application.get_env(:ant, :database, [])[:persistence_dir]
+
+    if persistence_dir do
+      Application.put_env(:mnesia, :dir, persistence_dir)
+    end
+
     unless :mnesia.system_info(:schema_location) do
       :ok = :mnesia.create_schema([node()])
     end
@@ -55,21 +63,50 @@ defmodule Ant.Application do
     :ok = :mnesia.start()
 
     # unless :mnesia.table_info(:ant_workers, :attributes) do
-    :mnesia.create_table(:ant_workers,
-      attributes: [
-        :id,
-        :worker_module,
-        :queue_name,
-        :args,
-        :status,
-        :attempts,
-        :scheduled_at,
-        :errors,
-        :opts
-      ]
-      # disc_copies: [node()]
-    )
+      persistence_strategy = Application.get_env(:ant, :database, [])[:persistence_strategy] || :ram_copies
+
+      persistence_options =
+        case persistence_strategy do
+          :disc_copies ->
+            validate_mnesia_disc_copies_config()
+            [disc_copies: [node()]]
+
+          :ram_copies ->
+            [ram_copies: [node()]]
+
+          :disc_only_copies ->
+            validate_mnesia_disc_copies_config()
+            [disc_only_copies: [node()]]
+
+          _ ->
+            [ram_copies: [node()]]
+        end
+
+      :mnesia.create_table(:ant_workers,
+        [
+          attributes: [
+            :id,
+            :worker_module,
+            :queue_name,
+            :args,
+            :status,
+            :attempts,
+            :scheduled_at,
+            :errors,
+            :opts
+          ],
+          type: :set
+        ] ++ persistence_options
+      )
 
     # end
+  end
+
+  defp validate_mnesia_disc_copies_config do
+    if node() == :nonode@nohost do
+      raise "Mnesia requires the app to run with a node name. Use --sname or --name."
+    end
+
+    :ok
   end
 end
