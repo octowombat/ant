@@ -4,7 +4,10 @@ defmodule Ant.MixProject do
   def project do
     [
       app: :ant,
-      version: "0.0.1",
+      package: package(),
+      name: "Ant",
+      description: "Asynchronous job processing tool for Elixir applications",
+      version: "0.0.1-rc.1",
       elixir: "~> 1.15",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -27,7 +30,15 @@ defmodule Ant.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:mimic, "~> 1.10", only: :test}
+      {:mimic, "~> 1.10", only: :test},
+      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
+    ]
+  end
+
+  defp package do
+    [
+      licenses: ["MIT"],
+      links: %{"GitHub" => "https://github.com/MikeAndrianov/ant"}
     ]
   end
 end
