@@ -1,6 +1,5 @@
 defmodule Ant.Worker do
   use GenServer
-  require Logger
 
   alias Ant.Workers
 
