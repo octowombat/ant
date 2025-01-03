@@ -11,7 +11,7 @@ defmodule Ant.Workers do
       args: worker.args,
       scheduled_at: worker.scheduled_at,
       errors: [],
-      opts: []
+      opts: worker.opts
     }
 
     Repo.insert(:ant_workers, params)

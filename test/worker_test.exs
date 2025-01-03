@@ -23,7 +23,7 @@ defmodule Ant.WorkerTest do
   end
 
   defmodule FailWorker do
-    use Ant.Worker
+    use Ant.Worker, max_attempts: 3
 
     def perform(_worker), do: :error
 
@@ -31,7 +31,15 @@ defmodule Ant.WorkerTest do
   end
 
   defmodule ExceptionWorker do
-    use Ant.Worker
+    use Ant.Worker, max_attempts: 3
+
+    def perform(_worker), do: raise("Custom exception!")
+
+    def calculate_delay(_worker), do: 0
+  end
+
+  defmodule WorkerWithMaxAttempts do
+    use Ant.Worker, max_attempts: 1
 
     def perform(_worker), do: raise("Custom exception!")
 
@@ -55,7 +63,7 @@ defmodule Ant.WorkerTest do
       assert worker.updated_at
       assert worker.attempts == 0
       assert worker.errors == []
-      assert worker.opts == []
+      assert worker.opts == [max_attempts: 1]
     end
   end
 
@@ -91,7 +99,7 @@ defmodule Ant.WorkerTest do
 
     test "prepares worker for retry if it fails" do
       defmodule FailOnceWorker do
-        use Ant.Worker
+        use Ant.Worker, max_attempts: 3
 
         def perform(%{attempts: 1}), do: :error
         def perform(_worker), do: :ok
@@ -231,6 +239,44 @@ defmodule Ant.WorkerTest do
       worker = TestWorkerWithQueueName.build(%{key: :value})
 
       assert worker.queue_name == "test_queue"
+    end
+  end
+
+  test "allows to set max_attempts" do
+    {:ok, worker} =
+      %{a: 1}
+      |> WorkerWithMaxAttempts.build()
+      |> Map.merge(%{
+        attempts: 1,
+        errors: [
+          %{
+            # emulating first attempt is already done
+            attempt: 1,
+            error: "Custom exception!",
+            stack_trace: "Ant.WorkerTest.ExceptionWorker.perform/1"
+          }
+        ]
+      })
+      |> Ant.Workers.create_worker()
+
+    expect(Ant.Queue, :dequeue, fn worker_to_dequeue ->
+      assert worker_to_dequeue.id == worker.id
+
+      :ok
+    end)
+
+    {:ok, pid} = Worker.start_link(worker)
+
+    assert Worker.perform(pid) == :ok
+
+    ref = Process.monitor(pid)
+
+    receive do
+      {:DOWN, ^ref, :process, ^pid, _reason} ->
+        {:ok, updated_worker} = Ant.Repo.get(:ant_workers, worker.id)
+
+        assert updated_worker.status == :failed
+        assert updated_worker.attempts == 1
     end
   end
 end

@@ -35,7 +35,7 @@ defmodule Ant.Worker do
   @callback calculate_delay(worker :: Ant.Worker.t()) :: non_neg_integer()
   @optional_callbacks calculate_delay: 1
 
-  @max_attempts 3
+  @default_max_attempts 1
   @default_retry_delay 10_000
 
   defmacro __using__(opts) do
@@ -45,6 +45,8 @@ defmodule Ant.Worker do
         :queue,
         List.first(Application.get_env(:ant, :queues, ["default"]))
       )
+
+    max_attempts = Keyword.get(opts, :max_attempts, @default_max_attempts)
 
     quote do
       @behaviour Ant.Worker
@@ -66,7 +68,7 @@ defmodule Ant.Worker do
           attempts: 0,
           scheduled_at: DateTime.utc_now(),
           errors: [],
-          opts: opts
+          opts: Keyword.put_new(opts, :max_attempts, unquote(max_attempts))
         }
       end
     end
@@ -88,6 +90,14 @@ defmodule Ant.Worker do
     }
 
     {:ok, state}
+  end
+
+  def handle_cast(
+        :perform,
+        %{worker: %{attempts: attempts, opts: [max_attempts: max_attempts]}} = state
+      )
+      when attempts >= max_attempts do
+    stop_worker(state.worker, state)
   end
 
   def handle_cast(:perform, state) do
@@ -146,7 +156,7 @@ defmodule Ant.Worker do
 
     errors = [error | worker.errors]
 
-    if worker.attempts < @max_attempts do
+    if worker.attempts < worker.opts[:max_attempts] do
       {:ok, worker} = Ant.Workers.update_worker(worker.id, %{errors: errors})
 
       state
@@ -172,7 +182,7 @@ defmodule Ant.Worker do
 
     errors = [error | worker.errors]
 
-    if attempts < @max_attempts do
+    if attempts < worker.opts[:max_attempts] do
       {:ok, worker} = Ant.Workers.update_worker(worker.id, %{errors: errors})
 
       state
@@ -186,8 +196,6 @@ defmodule Ant.Worker do
   end
 
   def terminate(_reason, _state) do
-    Logger.debug("GenServer is terminating.")
-
     :ok
   end
 
