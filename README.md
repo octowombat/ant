@@ -46,9 +46,11 @@ You can configure the library to make it more suitable for your use case.
 
 By default `ant` uses only one queue `default`, that allows to concurrently process up to 5 jobs. Check interval for new jobs is 5 seconds.
 
-You can define your own queues in `config.exs` file:
+You can define your own queues in configuration files. Example of `config/config.exs`:
 
 ```elixir
+import Config
+
 config :ant,
   queues: [
     high_priority: [ # queue name
@@ -140,5 +142,48 @@ config :ant,
 ## Operations with Workers
 
 1. `Ant.Workers.list_workers()` - returns a list of all workers
+It supports filtering by one or multiple attributes:
+
+```elixir
+iex(1)> Ant.Workers.list_workers(%{
+...(1)>   queue_name: :default,
+...(1)>   status: :failed,
+...(1)>   args: %{email: "jane.smith734@@yahoo.com"}
+...(1)> })
+  {:ok,
+   [
+      %Ant.Worker{
+        id: 1150403,
+        worker_module: AntSandbox.SendPromotionWorker,
+        queue_name: :default,
+        args: %{email: "jane.smith734@@yahoo.com"},
+        status: :failed,
+        attempts: 3,
+        scheduled_at: nil,
+        updated_at: ~U[2025-01-11 17:31:29.615924Z],
+        errors: [
+        %{
+            error: "Expected :ok or {:ok, _result}, but got {:error, \"Invalid email\"}",
+            attempt: 3,
+            stack_trace: nil,
+            attempted_at: ~U[2025-01-11 17:31:29.615792Z]
+        },
+        %{
+            error: "Expected :ok or {:ok, _result}, but got {:error, \"Invalid email\"}",
+            attempt: 2,
+            stack_trace: nil,
+            attempted_at: ~U[2025-01-11 17:30:56.964108Z]
+        },
+        %{
+            error: "Expected :ok or {:ok, _result}, but got {:error, \"Invalid email\"}",
+            attempt: 1,
+            stack_trace: nil,
+            attempted_at: ~U[2025-01-11 17:30:32.909500Z]
+        }
+        ],
+        opts: [max_attempts: 3]
+      }
+    ]}
+```
 2. `Ant.Workers.get_worker(id)` - returns a worker by id
 3. `Ant.Workers.delete_worker(worker)` - deletes a worker. It's not recommended to use this function directly.
