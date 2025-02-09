@@ -26,3 +26,5 @@ ant-*.tar
 /tmp/
 
 /.lexical
+
+.tool-versions
