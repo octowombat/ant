@@ -39,7 +39,7 @@ defmodule Ant.Database.Adapters.MnesiaTest do
   end
 
   test "get/2 returns not found when record does not exist" do
-    assert {:error, :not_found} = Mnesia.get(:ant_workers, "non-existent-id")
+    assert {:error, :not_found} = Mnesia.get(:ant_workers, 999_999_999)
   end
 
   test "update/3 updates record" do

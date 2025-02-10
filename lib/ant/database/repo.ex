@@ -3,49 +3,48 @@ defmodule Ant.Repo do
     ant_workers: Ant.Worker
   }
 
-  def get(db_table, id) do
+  @spec get(atom(), non_neg_integer()) ::
+          {:ok, Ant.Worker.t()} | {:error, :not_found} | {:aborted, any()}
+  def get(db_table, id) when is_atom(db_table) and is_integer(id) and id >= 0 do
     with {:ok, record} <- Ant.Database.Adapters.Mnesia.get(db_table, id) do
       {:ok, to_struct(db_table, record)}
     end
   end
 
-  # def get_by(queryable, params) do
-  # end
-
-  def all(db_table) do
+  @spec all(atom()) :: [Ant.Worker.t()]
+  def all(db_table) when is_atom(db_table) do
     db_table
     |> Ant.Database.Adapters.Mnesia.all()
     |> Enum.map(&to_struct(db_table, &1))
   end
 
-  def filter(db_table, params) do
+  @spec filter(atom(), map()) :: [Ant.Worker.t()]
+  def filter(db_table, params) when is_atom(db_table) and is_map(params) do
     db_table
     |> Ant.Database.Adapters.Mnesia.filter(params)
     |> Enum.map(&to_struct(db_table, &1))
   end
 
   @spec insert(atom(), map()) :: {:ok, Ant.Worker.t()} | {:aborted, any()}
-  def insert(db_table, params) do
+  def insert(db_table, params) when is_atom(db_table) and is_map(params) do
     with {:ok, record} <- Ant.Database.Adapters.Mnesia.insert(db_table, params) do
       {:ok, to_struct(db_table, record)}
     end
   end
 
-  def update(db_table, id, params) do
+  @spec update(atom(), non_neg_integer(), map()) :: {:ok, Ant.Worker.t()} | {:aborted, any()}
+  def update(db_table, id, params)
+      when is_atom(db_table) and is_integer(id) and id >= 0 and
+             is_map(params) do
     with {:ok, record} <- Ant.Database.Adapters.Mnesia.update(db_table, id, params) do
       {:ok, to_struct(db_table, record)}
     end
   end
 
-  # def update_all(queryable, params) do
-  # end
-
-  def delete(db_table, id) do
+  @spec delete(atom(), non_neg_integer()) :: :ok | {:aborted, any()}
+  def delete(db_table, id) when is_atom(db_table) and is_integer(id) and id >= 0 do
     Ant.Database.Adapters.Mnesia.delete(db_table, id)
   end
-
-  # defp delete_all(queryable) do
-  # end
 
   defp to_struct(db_table, record) do
     @table_to_struct_mapping

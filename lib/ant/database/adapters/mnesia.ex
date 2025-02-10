@@ -1,5 +1,7 @@
 defmodule Ant.Database.Adapters.Mnesia do
-  def get(db_table, id) do
+  @spec get(atom(), non_neg_integer()) ::
+          {:ok, map()} | {:error, :not_found} | {:aborted, any()}
+  def get(db_table, id) when is_atom(db_table) and is_integer(id) and id >= 0 do
     with {:atomic, %{} = record} <-
            :mnesia.transaction(fn ->
              case :mnesia.read({db_table, id}) do
@@ -22,7 +24,8 @@ defmodule Ant.Database.Adapters.Mnesia do
     end
   end
 
-  def filter(db_table, params) do
+  @spec filter(atom(), map()) :: [map()]
+  def filter(db_table, params) when is_atom(db_table) and is_map(params) do
     table_columns = get_table_columns(db_table)
 
     {:atomic, records} =
@@ -42,7 +45,8 @@ defmodule Ant.Database.Adapters.Mnesia do
     Enum.map(records, &to_map(&1, table_columns))
   end
 
-  def all(db_table) do
+  @spec all(atom()) :: [map()]
+  def all(db_table) when is_atom(db_table) do
     table_columns = get_table_columns(db_table)
 
     {:atomic, records} =
@@ -58,7 +62,7 @@ defmodule Ant.Database.Adapters.Mnesia do
   end
 
   @spec insert(atom(), map()) :: {:ok, Ant.Worker.t()} | {:aborted, any()}
-  def insert(db_table, params) do
+  def insert(db_table, params) when is_atom(db_table) and is_map(params) do
     table_columns = get_table_columns(db_table)
 
     attributes =
@@ -78,7 +82,9 @@ defmodule Ant.Database.Adapters.Mnesia do
     end
   end
 
-  def update(db_table, id, params) do
+  @spec update(atom(), non_neg_integer(), map()) :: {:ok, map()} | {:aborted, any()}
+  def update(db_table, id, params)
+      when is_atom(db_table) and is_integer(id) and id >= 0 and is_map(params) do
     with {:atomic, result} <-
            :mnesia.transaction(fn ->
              case :mnesia.read({db_table, id}) do
@@ -106,7 +112,8 @@ defmodule Ant.Database.Adapters.Mnesia do
     end
   end
 
-  def delete(db_table, id) do
+  @spec delete(atom(), non_neg_integer()) :: :ok | {:aborted, any()}
+  def delete(db_table, id) when is_atom(db_table) and is_integer(id) and id >= 0 do
     with {:atomic, :ok} <- :mnesia.transaction(fn -> :mnesia.delete({db_table, id}) end) do
       :ok
     end

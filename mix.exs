@@ -18,7 +18,7 @@ defmodule Ant.MixProject do
         plt_local_path: "priv/plts/ant.plt",
         plt_core_path: "priv/plts/core"
       ],
-      version: "0.0.2",
+      version: "0.0.3",
       elixir: "~> 1.15",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),

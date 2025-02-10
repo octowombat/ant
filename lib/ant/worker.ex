@@ -58,6 +58,7 @@ defmodule Ant.Worker do
         |> Workers.create_worker()
       end
 
+      @spec build(map(), keyword()) :: Ant.Worker.t()
       def build(args, opts \\ []) do
         %Ant.Worker{
           worker_module: __MODULE__,
@@ -74,16 +75,19 @@ defmodule Ant.Worker do
   end
 
   # Client API
-  def start_link(worker) do
+  @spec start_link(Ant.Worker.t()) :: GenServer.on_start()
+  def start_link(%Ant.Worker{} = worker) do
     GenServer.start_link(__MODULE__, worker)
   end
 
-  def perform(worker_pid) do
+  @spec perform(pid) :: :ok
+  def perform(worker_pid) when is_pid(worker_pid) do
     GenServer.cast(worker_pid, :perform)
   end
 
   # Server Callbacks
-  def init(worker) do
+  @impl GenServer
+  def init(%Ant.Worker{} = worker) do
     state = %{
       worker: worker
     }
@@ -91,6 +95,7 @@ defmodule Ant.Worker do
     {:ok, state}
   end
 
+  @impl GenServer
   def handle_cast(
         :perform,
         %{worker: %{attempts: attempts, opts: [max_attempts: max_attempts]}} = state
@@ -194,6 +199,7 @@ defmodule Ant.Worker do
     end
   end
 
+  @impl GenServer
   def terminate(_reason, _state) do
     :ok
   end
