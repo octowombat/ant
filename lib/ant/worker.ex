@@ -50,8 +50,7 @@ defmodule Ant.Worker do
     quote do
       @behaviour Ant.Worker
 
-      @spec perform_async(args :: map(), opts :: keyword()) ::
-              {:ok, Ant.Worker.t()} | {:aborted, any()}
+      @spec perform_async(args :: map(), opts :: keyword()) :: {:ok, Ant.Worker.t()}
       def perform_async(args, opts \\ []) do
         args
         |> build(opts)

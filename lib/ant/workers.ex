@@ -1,7 +1,7 @@
 defmodule Ant.Workers do
   alias Ant.Repo
 
-  @spec create_worker(Ant.Worker.t()) :: {:ok, Ant.Worker.t()} | {:aborted, any()}
+  @spec create_worker(Ant.Worker.t()) :: {:ok, Ant.Worker.t()}
   def create_worker(%Ant.Worker{} = worker) do
     params = %{
       worker_module: worker.worker_module,

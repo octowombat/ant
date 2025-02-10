@@ -1,6 +1,6 @@
 defmodule Ant.Database.Adapters.Mnesia do
   @spec get(atom(), non_neg_integer()) ::
-          {:ok, map()} | {:error, :not_found} | {:aborted, any()}
+          {:ok, map()} | {:error, :not_found}
   def get(db_table, id) when is_atom(db_table) and is_integer(id) and id >= 0 do
     with {:atomic, %{} = record} <-
            :mnesia.transaction(fn ->
@@ -61,7 +61,7 @@ defmodule Ant.Database.Adapters.Mnesia do
     records
   end
 
-  @spec insert(atom(), map()) :: {:ok, Ant.Worker.t()} | {:aborted, any()}
+  @spec insert(atom(), map()) :: {:ok, Ant.Worker.t()}
   def insert(db_table, params) when is_atom(db_table) and is_map(params) do
     table_columns = get_table_columns(db_table)
 
@@ -82,7 +82,7 @@ defmodule Ant.Database.Adapters.Mnesia do
     end
   end
 
-  @spec update(atom(), non_neg_integer(), map()) :: {:ok, map()} | {:aborted, any()}
+  @spec update(atom(), non_neg_integer(), map()) :: {:ok, map()}
   def update(db_table, id, params)
       when is_atom(db_table) and is_integer(id) and id >= 0 and is_map(params) do
     with {:atomic, result} <-
@@ -112,7 +112,7 @@ defmodule Ant.Database.Adapters.Mnesia do
     end
   end
 
-  @spec delete(atom(), non_neg_integer()) :: :ok | {:aborted, any()}
+  @spec delete(atom(), non_neg_integer()) :: :ok
   def delete(db_table, id) when is_atom(db_table) and is_integer(id) and id >= 0 do
     with {:atomic, :ok} <- :mnesia.transaction(fn -> :mnesia.delete({db_table, id}) end) do
       :ok

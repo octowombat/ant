@@ -4,7 +4,7 @@ defmodule Ant.Repo do
   }
 
   @spec get(atom(), non_neg_integer()) ::
-          {:ok, Ant.Worker.t()} | {:error, :not_found} | {:aborted, any()}
+          {:ok, Ant.Worker.t()} | {:error, :not_found}
   def get(db_table, id) when is_atom(db_table) and is_integer(id) and id >= 0 do
     with {:ok, record} <- Ant.Database.Adapters.Mnesia.get(db_table, id) do
       {:ok, to_struct(db_table, record)}
@@ -25,14 +25,14 @@ defmodule Ant.Repo do
     |> Enum.map(&to_struct(db_table, &1))
   end
 
-  @spec insert(atom(), map()) :: {:ok, Ant.Worker.t()} | {:aborted, any()}
+  @spec insert(atom(), map()) :: {:ok, Ant.Worker.t()}
   def insert(db_table, params) when is_atom(db_table) and is_map(params) do
     with {:ok, record} <- Ant.Database.Adapters.Mnesia.insert(db_table, params) do
       {:ok, to_struct(db_table, record)}
     end
   end
 
-  @spec update(atom(), non_neg_integer(), map()) :: {:ok, Ant.Worker.t()} | {:aborted, any()}
+  @spec update(atom(), non_neg_integer(), map()) :: {:ok, Ant.Worker.t()}
   def update(db_table, id, params)
       when is_atom(db_table) and is_integer(id) and id >= 0 and
              is_map(params) do
@@ -41,7 +41,7 @@ defmodule Ant.Repo do
     end
   end
 
-  @spec delete(atom(), non_neg_integer()) :: :ok | {:aborted, any()}
+  @spec delete(atom(), non_neg_integer()) :: :ok
   def delete(db_table, id) when is_atom(db_table) and is_integer(id) and id >= 0 do
     Ant.Database.Adapters.Mnesia.delete(db_table, id)
   end
