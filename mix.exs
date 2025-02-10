@@ -7,6 +7,17 @@ defmodule Ant.MixProject do
       package: package(),
       name: "Ant",
       description: "Background job processing library for Elixir focused on simplicity",
+      dialyzer: [
+        ignore_warnings: ".dialyzer_ignore.exs",
+        plt_add_apps: [
+          :ex_unit,
+          :mix
+        ],
+        plt_add_deps: :apps_direct,
+        plt_file: {:no_warn, "priv/plts/ant.plt"},
+        plt_local_path: "priv/plts/ant.plt",
+        plt_core_path: "priv/plts/core"
+      ],
       version: "0.0.2",
       elixir: "~> 1.15",
       start_permanent: Mix.env() == :prod,
@@ -31,7 +42,8 @@ defmodule Ant.MixProject do
   defp deps do
     [
       {:mimic, "~> 1.10", only: :test},
-      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
+      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
+      {:dialyxir, "~> 1.3", only: [:dev, :test], runtime: false}
     ]
   end
 

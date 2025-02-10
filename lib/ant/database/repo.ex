@@ -24,6 +24,7 @@ defmodule Ant.Repo do
     |> Enum.map(&to_struct(db_table, &1))
   end
 
+  @spec insert(atom(), map()) :: {:ok, Ant.Worker.t()} | {:aborted, any()}
   def insert(db_table, params) do
     with {:ok, record} <- Ant.Database.Adapters.Mnesia.insert(db_table, params) do
       {:ok, to_struct(db_table, record)}

@@ -30,6 +30,15 @@ defmodule Ant.WorkerTest do
     def calculate_delay(_worker), do: 0
   end
 
+  defmodule FailOnceWorker do
+    use Ant.Worker, max_attempts: 3
+
+    def perform(%{attempts: 1}), do: :error
+    def perform(_worker), do: :ok
+
+    def calculate_delay(_worker), do: 0
+  end
+
   defmodule ExceptionWorker do
     use Ant.Worker, max_attempts: 3
 
@@ -98,15 +107,6 @@ defmodule Ant.WorkerTest do
     end
 
     test "prepares worker for retry if it fails" do
-      defmodule FailOnceWorker do
-        use Ant.Worker, max_attempts: 3
-
-        def perform(%{attempts: 1}), do: :error
-        def perform(_worker), do: :ok
-
-        def calculate_delay(_worker), do: 0
-      end
-
       {:ok, worker} =
         %{a: 1}
         |> FailOnceWorker.build()

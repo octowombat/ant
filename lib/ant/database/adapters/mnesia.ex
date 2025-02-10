@@ -57,6 +57,7 @@ defmodule Ant.Database.Adapters.Mnesia do
     records
   end
 
+  @spec insert(atom(), map()) :: {:ok, Ant.Worker.t()} | {:aborted, any()}
   def insert(db_table, params) do
     table_columns = get_table_columns(db_table)
 

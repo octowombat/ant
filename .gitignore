@@ -28,3 +28,6 @@ ant-*.tar
 /.lexical
 
 .tool-versions
+
+/priv/**/*.plt 
+/priv/**/*.plt.hash
